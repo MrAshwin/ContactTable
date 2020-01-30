@@ -5,56 +5,96 @@ using ContactsCoreMVC.Models.Entities;
 using Microsoft.Extensions.Options;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Table;
+using System;
+using Microsoft.Extensions.Logging;
 
 namespace ContactsCoreMVC.Models.Concrete
 {
-  public class TContactRepository : IContactRepository
-  {
-    private readonly CloudStorageAccount _cloudStorageAccount;
-    private readonly CloudTableClient _cloudTableClient;
-    private readonly CloudTable _cloudTable;
-
-    public TContactRepository(IOptions<StorageUtility> storageUtility)
+    public class TContactRepository : IContactRepository
     {
-      _cloudStorageAccount = storageUtility.Value.StorageAccount;
-      _cloudTableClient = _cloudStorageAccount.CreateCloudTableClient();
-      _cloudTable = _cloudTableClient.GetTableReference("Contacts");
-      _cloudTable.CreateIfNotExistsAsync().GetAwaiter().GetResult();
-    }
+        private readonly ILogger<TContactRepository> _logger;
+        private readonly CloudStorageAccount _cloudStorageAccount;
+        private readonly CloudTableClient _cloudTableClient;
+        private readonly CloudTable _cloudTable;
 
-    public async Task<ContactTable> CreateAsync(ContactTable contactTable)
-    {
-      return null;
-    }
+        public TContactRepository(IOptions<StorageUtility> storageUtility, ILogger<TContactRepository> logger)
+        {
+            _logger = logger;
+            _cloudStorageAccount = storageUtility.Value.StorageAccount;
+            _cloudTableClient = _cloudStorageAccount.CreateCloudTableClient();
+            _cloudTable = _cloudTableClient.GetTableReference("Contacts");
+            _cloudTable.CreateIfNotExistsAsync().GetAwaiter().GetResult();
+        }
 
-    public async Task<List<ContactTable>> GetAllContactsAsync()
-    {
-      return null;
-    }
+        public async Task<ContactTable> CreateAsync(ContactTable contactTable)
+        {
+            TableOperation insertOperation = TableOperation.Insert(contactTable);
+            TableResult tableResult = await _cloudTable.ExecuteAsync(insertOperation);
+            ContactTable insertedContact = tableResult.Result as ContactTable;
+            return insertedContact;
+        }
 
-    public async Task<ContactTable> FindContactAsync(string partitionKey, string rowKey)
-    {
-      return null;
-    }
+        public async Task<List<ContactTable>> GetAllContactsAsync()
+        {
+            TableQuery<ContactTable> query = new TableQuery<ContactTable>();
+            TableContinuationToken tcToken = null;
+            var result = await _cloudTable.ExecuteQuerySegmentedAsync(query, tcToken);
+            return result.Results;
+        }
 
-    public async Task<List<ContactTable>> FindContactByRowKeyAsync(string rowKey)
-    {
-      return null;
-    }
+        public async Task<ContactTable> FindContactAsync(string partitionKey, string rowKey)
+        {
+            TableOperation retrieveOperation = TableOperation.Retrieve<ContactTable>(partitionKey, rowKey);
+            TableResult tableResult = await _cloudTable.ExecuteAsync(retrieveOperation);
+            var result = tableResult.Result as ContactTable;
+            return result;
+        }
 
-    public async Task<List<ContactTable>> FindContactsByPartitionKeyAsync(string partitionKey)
-    {
-      return null;
-    }
+        public async Task<List<ContactTable>> FindContactByRowKeyAsync(string rowKey)
+        {
+            TableQuery<ContactTable> query = new TableQuery<ContactTable>()
+              .Where(TableQuery.GenerateFilterCondition("RowKey", QueryComparisons.Equal, rowKey));
+            TableContinuationToken tcToken = null;
+            var contactTableResult = await _cloudTable.ExecuteQuerySegmentedAsync(query, tcToken);
+            return contactTableResult.Results;
+        }
 
-    public async Task<ContactTable> UpdateAsync(ContactTable contactTable)
-    {
-      return null;
-    }
+        public async Task<List<ContactTable>> FindContactsByPartitionKeyAsync(string partitionKey)
+        {
+            TableQuery<ContactTable> query = new TableQuery<ContactTable>()
+              .Where(TableQuery.GenerateFilterCondition("PartitionKey", QueryComparisons.Equal, partitionKey));
+            TableContinuationToken tcToken = null;
+            var contactTableResult = await _cloudTable.ExecuteQuerySegmentedAsync(query, tcToken);
+            return contactTableResult.Results;
+        }
 
-    public async Task DeleteAsync(string partitionKey, string rowKey)
-    {
-      return null;
+        public async Task<ContactTable> UpdateAsync(ContactTable contactTable)
+        {
+            TableOperation retrieveOperation = TableOperation.Retrieve<ContactTable>(contactTable.PartitionKey, contactTable.RowKey);
+            TableResult tableResult = await _cloudTable.ExecuteAsync(retrieveOperation);
+            var contactToUpdate = tableResult.Result as ContactTable;
+            if (contactToUpdate != null)
+            {
+                contactToUpdate.ContactType = contactTable.ContactType;
+                contactToUpdate.Email = contactTable.Email;
+                TableOperation updateContact = TableOperation.Replace(contactToUpdate);
+                var updateResult = await _cloudTable.ExecuteAsync(updateContact);
+                return updateResult.Result as ContactTable;
+            }
+            return null;
+        }
+
+        public async Task DeleteAsync(string partitionKey, string rowKey)
+        {
+            TableOperation retrieveOperation = TableOperation.Retrieve<ContactTable>(partitionKey, rowKey);
+            TableResult tableResult = await _cloudTable.ExecuteAsync(retrieveOperation);
+            var contactToDelete = tableResult.Result as ContactTable;
+            if (contactToDelete != null)
+            {
+                TableOperation deleteOperation = TableOperation.Delete(contactToDelete);
+                var result = await _cloudTable.ExecuteAsync(deleteOperation);
+                _logger.LogInformation($"Result of delete: {result.Result}");
+            }
+        }
     }
-  }
 }
