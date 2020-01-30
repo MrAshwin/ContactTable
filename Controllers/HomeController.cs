@@ -11,48 +11,49 @@ using Microsoft.Azure.KeyVault;
 
 namespace ContactsCoreMVC.Controllers
 {
-  public class HomeController : Controller
-  {
-    private readonly IConfiguration _configuration;
-
-    public HomeController(IConfiguration configuration)
+    public class HomeController : Controller
     {
-      _configuration = configuration;
-    }
-    public IActionResult Index()
-    {
-      return View();
-    }
+        private readonly IConfiguration _configuration;
 
-    public async Task<IActionResult> Vault()
-    {
-      AzureServiceTokenProvider azureServiceTokenProvider = new AzureServiceTokenProvider();
-      KeyVaultClient keyVaultClient = new KeyVaultClient(new KeyVaultClient.AuthenticationCallback(azureServiceTokenProvider.KeyVaultTokenCallback));
-      var secrets = await keyVaultClient.GetSecretsAsync(_configuration["MNKeyVault"]);
+        public HomeController(IConfiguration configuration)
+        {
+            _configuration = configuration;
+            //
+        }
+        public IActionResult Index()
+        {
+            return View();
+        }
 
-      Dictionary<string, string> secretValueList = new Dictionary<string, string>();
-      foreach (var item in secrets)
-      {
-        var secret = await keyVaultClient.GetSecretAsync(item.Id);
-        secretValueList.Add(item.Id, secret.Value);
-      }
-      return View(secretValueList);
-    }
+        public async Task<IActionResult> Vault()
+        {
+            AzureServiceTokenProvider azureServiceTokenProvider = new AzureServiceTokenProvider();
+            KeyVaultClient keyVaultClient = new KeyVaultClient(new KeyVaultClient.AuthenticationCallback(azureServiceTokenProvider.KeyVaultTokenCallback));
+            var secrets = await keyVaultClient.GetSecretsAsync(_configuration["MNKeyVault"]);
 
-    public IActionResult Privacy()
-    {
-      return View();
-    }
+            Dictionary<string, string> secretValueList = new Dictionary<string, string>();
+            foreach (var item in secrets)
+            {
+                var secret = await keyVaultClient.GetSecretAsync(item.Id);
+                secretValueList.Add(item.Id, secret.Value);
+            }
+            return View(secretValueList);
+        }
 
-    public IActionResult About()
-    {
-      return View();
-    }
+        public IActionResult Privacy()
+        {
+            return View();
+        }
 
-    [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
-    public IActionResult Error()
-    {
-      return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
+        public IActionResult About()
+        {
+            return View();
+        }
+
+        [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+        public IActionResult Error()
+        {
+            return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
+        }
     }
-  }
 }
